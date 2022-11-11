@@ -1,7 +1,25 @@
 #include <iostream>
 #include <Windows.h>
+#include <Psapi.h>
 
 using namespace std;
+
+DWORD GetBaseAddress(const HANDLE hProcess) {
+	if (hProcess == NULL)
+		return NULL; // No access to the process
+
+	HMODULE lphModule[1024]; // Array that receives the list of module handles
+	DWORD lpcbNeeded(NULL); // Output of EnumProcessModules, giving the number of bytes requires to store all modules handles in the lphModule array
+
+	if (!EnumProcessModules(hProcess, lphModule, sizeof(lphModule), &lpcbNeeded))
+		return NULL; // Impossible to read modules
+
+	TCHAR szModName[MAX_PATH];
+	if (!GetModuleFileNameEx(hProcess, lphModule[0], szModName, sizeof(szModName) / sizeof(TCHAR)))
+		return NULL; // Impossible to get module info
+
+	return (DWORD)lphModule[0]; // Module 0 is apparently always the EXE itself, returning its address
+}
 
 int main()
 {
@@ -20,6 +38,45 @@ int main()
 		GetWindowThreadProcessId(hwnd, &procID);
 		HANDLE handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, procID);
 
+		DWORD AddressOfFirstPointer;
+		DWORD ValueAtFirstPointer;
+		DWORD AddressOfP1Win;
+		DWORD AddressOfP2Win;
+		DWORD ValueOfP2Win;
+		DWORD ValueOfP1Win;
+		DWORD P1WinOffset = 0x434;
+		DWORD P2WinOffset = 0x43C;
+		DWORD BaseAddress = GetBaseAddress(handle);
+		DWORD BaseAddressOffset = 0x00841984;
+
+		//Uncomment the print statements for de-bugging reasons!
+
+		//cout << "The Base Address of SkullGirls is: " << std::hex << BaseAddress << endl;
+
+		AddressOfFirstPointer = BaseAddress + BaseAddressOffset;
+
+		//cout << "The Address of The Static Pointer To UI CLass Object is: " << std::hex << AddressOfFirstPointer << endl;
+
+		ReadProcessMemory(handle, (DWORD*)AddressOfFirstPointer, &ValueAtFirstPointer, sizeof(int), 0);
+
+		//cout << "The Value of The Static Pointer To UI CLass Object is: " << std::hex << ValueAtFirstPointer << endl;
+
+		AddressOfP1Win = ValueAtFirstPointer + P1WinOffset;
+
+		//cout << "The Address of The Player 1 Win Bool is: " << std::hex << AddressOfP1Win << endl;
+
+		ReadProcessMemory(handle, (DWORD*)AddressOfP1Win, &ValueOfP1Win, sizeof(int), 0);
+
+		//cout << "The Value of The Player 1 Win Bool is: " << std::hex << ValueOfP1Win << endl;
+
+		AddressOfP2Win = ValueAtFirstPointer + P2WinOffset;
+
+		//cout << "The Address of The Player 2 Win Bool is: " << std::hex << AddressOfP2Win << endl;
+
+		ReadProcessMemory(handle, (DWORD*)AddressOfP2Win, &ValueOfP2Win, sizeof(int), 0);
+
+		//cout << "The Value of The Player 2 Win Bool is: " << std::hex << ValueOfP2Win << endl;
+
 		if (procID == NULL)
 		{
 			cout << "Cannot Find Skullgirls Proccess ID" << endl;
@@ -31,8 +88,8 @@ int main()
 			cout << "Press Num Pad 0 to Exit..." << endl;
 			while (true) {
 				Sleep(50);
-				ReadProcessMemory(handle, (PBYTE*)0x0C8C30A4, &readP1Win, sizeof(int), 0);
-				ReadProcessMemory(handle, (PBYTE*)0x0C8C30AC, &readP2Win, sizeof(int), 0);
+				ReadProcessMemory(handle, (PBYTE*)AddressOfP1Win, &readP1Win, sizeof(int), 0);
+				ReadProcessMemory(handle, (PBYTE*)AddressOfP2Win, &readP2Win, sizeof(int), 0);
 				if (readP1Win)
 				{
 					cout << "Player 1 Wins!" << endl;
